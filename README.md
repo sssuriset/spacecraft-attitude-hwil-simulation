@@ -39,6 +39,7 @@ Additional design notes are included in:
 
 - `docs/system_architecture.md`
 - `docs/control_design.md`
+- `docs/results.md`
 
 ## Data Flow
 
@@ -112,7 +113,8 @@ spacecraft-attitude-hwil-simulation/
 ├── README.md
 ├── docs/
 │   ├── system_architecture.md
-│   └── control_design.md
+│   ├── control_design.md
+│   └── results.md
 ├── simulation/
 │   ├── spacecraft_dynamics.py
 │   ├── hwil_simulation.py
