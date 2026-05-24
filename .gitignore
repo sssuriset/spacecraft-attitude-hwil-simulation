@@ -25,3 +25,9 @@ flight_software/sched_test
 flight_software/libsched.dylib
 flight_software/libsched.so
 *.o
+
+# old build artifact names
+flight_software/controller_test
+flight_software/scheduler_test
+flight_software/libscheduler.dylib
+flight_software/libscheduler.so
