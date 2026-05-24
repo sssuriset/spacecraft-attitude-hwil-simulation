@@ -19,3 +19,9 @@ flight_software/sched_test
 *.asv
 *.slxc
 data/*.db
+# build artifacts
+flight_software/ctrl
+flight_software/sched_test
+flight_software/libsched.dylib
+flight_software/libsched.so
+*.o
