@@ -167,6 +167,14 @@ gcc flight_software/scheduler_test.c flight_software/scheduler.c -o flight_softw
 
 This project uses a simplified small-angle attitude model instead of full quaternion dynamics. The HWIL interface is software-based and does not yet communicate with physical hardware. MATLAB/Simulink code generation is planned as a future extension.
 
+## Telemetry Backend Upgrade
+
+This project includes a lightweight telemetry backend that extends the spacecraft attitude simulation into an operations-style monitoring workflow. Simulated spacecraft telemetry is published through a Python queue-based pub/sub pattern, consumed by a monitoring service, stored in a SQLite database, and checked against defined anomaly thresholds.
+
+The backend tracks attitude error, angular rate, torque command, battery percentage, and temperature for multiple simulated spacecraft. It flags conditions such as pointing error limits, torque saturation, low battery, and temperature violations, then prints a fleet-status summary for review.
+
+This upgrade models the type of backend logic used in spacecraft operations software: telemetry ingestion, state storage, anomaly detection, and fleet health monitoring.
+
 ## Future Work
 
 - Replace the small-angle attitude model with quaternion dynamics

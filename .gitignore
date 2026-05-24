@@ -18,3 +18,4 @@ flight_software/scheduler_test
 # MATLAB temporary files
 *.asv
 *.slxc
+data/*.db
