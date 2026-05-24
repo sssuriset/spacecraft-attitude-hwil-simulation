@@ -62,7 +62,7 @@ static int run_once(int argc, char *argv[])
 
     if (argc != 8) {
         fprintf(stderr,
-                "Usage: controller_test time_s theta_x theta_y theta_z omega_x omega_y omega_z\n");
+                "Usage: ctrl time_s theta_x theta_y theta_z omega_x omega_y omega_z\n");
         return 1;
     }
 

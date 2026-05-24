@@ -1,151 +1,61 @@
 # Control Design
 
-This project uses a proportional-derivative attitude controller to stabilize a simplified 3-axis spacecraft attitude model.
+The controller uses a 3-axis PD law.
 
-## Control Objective
-
-The control objective is to reduce spacecraft attitude error and angular velocity toward zero.
-
-The attitude state is represented by a small-angle attitude error vector:
-
-```text
-theta = [theta_x, theta_y, theta_z]
-```
-
-The angular velocity vector is:
-
-```text
-omega = [omega_x, omega_y, omega_z]
-```
-
-The controller computes a commanded torque vector for the reaction wheels.
-
-## Control Law
-
-The flight software controller uses:
-
-```text
-torque = -kp * theta - kd * omega
-```
+    torque_cmd = -Kp theta - Kd omega
 
 where:
 
-| Symbol | Meaning |
-|---|---|
-| theta | attitude error vector |
-| omega | angular velocity vector |
-| kp | proportional gain |
-| kd | derivative gain |
-| torque | commanded reaction wheel torque |
+    theta = measured attitude error
+    omega = measured angular velocity
+    Kp = 0.8
+    Kd = 2.0
 
-The proportional term reduces attitude error. The derivative term damps angular velocity.
+The controller is implemented in C. The Python simulation sends measured state values to the C process and reads back the torque command.
 
-## Gains Used
+## Plant model
 
-The controller currently uses:
+The plant uses a small-angle, decoupled-axis rotational model.
 
-```text
-kp = 0.8
-kd = 2.0
-```
+    alpha = torque / inertia
+    omega_next = omega + alpha dt
+    theta_next = theta + omega dt
 
-These gains were selected to produce stable damping for the simplified spacecraft inertia values used in the simulation.
+The inertia vector is:
 
-## Spacecraft Dynamics Model
+    [10.0, 12.0, 8.0] kg m^2
 
-The simplified rotational dynamics are:
+This model is valid only as a simplified pointing-error model. It is not a full rigid-body spacecraft attitude model.
 
-```text
-alpha = torque / I
-omega = omega + alpha * dt
-theta = theta + omega * dt
-```
+## Actuator limiting
 
-where:
+The C controller returns a raw command. The Python plant applies the actuator limit.
 
-| Symbol | Meaning |
-|---|---|
-| I | spacecraft moment of inertia vector |
-| alpha | angular acceleration |
-| dt | simulation timestep |
+    torque_applied = clip(torque_cmd, -0.2, 0.2)
 
-This model assumes decoupled 3-axis rotational motion. It does not yet include full rigid-body cross-coupling or quaternion kinematics.
+Both values are logged.
 
-## Sensor Model
+    torque_cmd_*       raw controller command
+    torque_applied_*   command after torque limiting
 
-The flight software does not receive the true state directly. The simulation adds noise to the attitude and angular velocity measurements before sending them to the C controller.
+This makes it possible to see when the controller requested more torque than the actuator model could provide.
 
-```text
-measured_theta = theta + noise
-measured_omega = omega + noise
-```
+## Sensor noise
 
-This approximates imperfect sensor measurements.
+The sensor task adds Gaussian noise to the plant state before the controller sees it.
 
-## Actuator Model
+    theta noise std = 0.001 rad
+    omega noise std = 0.0005 rad/s
 
-The reaction wheel torque command is limited using a saturation model.
+The controller does not see the exact plant state.
 
-```text
-torque = clip(torque, -max_torque, max_torque)
-```
+## Health state
 
-The current actuator limit is:
+The health task reports one of four states:
 
-```text
-max_torque = 0.2 N m
-```
+    OK
+    POINTING_WARN
+    POINTING_FAULT
+    TORQUE_LIMITED
 
-This prevents the controller from commanding unrealistic torque values.
-
-## RTOS-Style Control Timing
-
-The control loop is not run continuously. The simulation uses scheduled task rates to approximate real-time flight software behavior.
-
-| Task | Rate | Purpose |
-|---|---:|---|
-| Sensor task | 100 Hz | Samples noisy attitude and angular velocity measurements |
-| Control task | 50 Hz | Calls the C flight software controller |
-| Telemetry task | 10 Hz | Logs state, command, and health data |
-| Health task | 1 Hz | Checks pointing error and actuator saturation |
-
-The control task uses the most recent sensor packet. This is closer to an embedded flight software pattern than directly evaluating the controller at every simulation line.
-
-## Health Monitoring
-
-The simulation computes pointing error magnitude using:
-
-```text
-pointing_error = norm(theta)
-```
-
-It also records whether the actuator command reaches the torque limit:
-
-```text
-torque_saturated = abs(torque) >= max_torque
-```
-
-These values are logged into the telemetry CSV file.
-
-## Result Interpretation
-
-The attitude error plot shows whether the spacecraft points toward the desired attitude. A stable controller should drive all attitude error components toward zero.
-
-The angular velocity plot shows whether rotational motion is being damped. A stable controller should reduce angular velocity toward zero.
-
-The torque command plot shows actuator effort. Saturation events occur when the commanded torque reaches the actuator limit.
-
-The pointing error plot combines all three attitude error components into one scalar metric. A lower final pointing error indicates better final stabilization.
-
-## Current Limitations
-
-This controller is intentionally simple. It is useful for demonstrating GN&C structure and flight software integration, but it is not yet a high-fidelity spacecraft attitude controller.
-
-Main limitations:
-
-- small-angle attitude model
-- no quaternion dynamics
-- no gyroscope bias estimation
-- no actuator delay model
-- no reaction wheel momentum storage model
-- no full rigid-body coupling
+`TORQUE_LIMITED` is set when the raw command differs from the applied command. `POINTING_WARN` and `POINTING_FAULT` are based on pointing-error thresholds.

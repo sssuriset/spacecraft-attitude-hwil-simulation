@@ -1,185 +1,171 @@
 # Spacecraft Attitude HWIL Simulation
 
-This project simulates a spacecraft attitude control system using a hardware-in-the-loop style architecture. The system separates spacecraft dynamics, sensor measurements, actuator commands, scheduled flight software tasks, and telemetry output.
+Small attitude-control testbed for a spacecraft pointing problem. Python simulates the plant, sensor noise, actuator limits, and telemetry logging. C handles the control step and task scheduler logic.
 
-The spacecraft is modeled in Python. The flight software controller is implemented in C. The Python simulation sends sensor-like data to the compiled C controller, receives actuator torque commands, applies actuator limits, and updates the spacecraft attitude state.
+This is a software HWIL-style simulation, not a physical hardware-in-the-loop setup. The useful part is the split between plant dynamics, noisy measurements, C flight software logic, actuator limiting, and logged telemetry.
 
-## Project Motivation
+## What it does
 
-Spacecraft flight software must operate with noisy sensor data, actuator limits, scheduled control loops, and telemetry constraints. This project models those ideas in a simplified attitude control problem.
+The simulation starts with an initial 3-axis attitude error and angular velocity. At fixed task rates, it:
 
-The goal is not to model a full spacecraft. The goal is to demonstrate the structure of a GN&C and avionics software workflow.
+- samples noisy attitude and angular-rate measurements
+- sends the measurement packet to a persistent C controller process
+- computes a PD torque command in C
+- clips the applied torque to model actuator limits
+- advances a simplified spacecraft attitude model in Python
+- uses a C scheduler library to decide when sensor, control, telemetry, and health tasks run
+- writes telemetry to a CSV file
+- generates plots for attitude error, angular velocity, raw torque command, applied torque, and pointing error
 
-## Features
+## Why this project exists
 
-- 3-axis spacecraft attitude stabilization model
-- C-based flight software attitude controller
-- HWIL-style separation between plant dynamics and controller logic
-- Sensor noise model
-- Reaction wheel torque saturation
-- RTOS-style task scheduling
-- Health-monitor telemetry
-- CSV telemetry output
-- Python result plotting
+The goal is not to build a full spacecraft ADCS model. The goal is to practice the software structure around one:
 
-## System Architecture
+- plant simulation
+- flight-software control logic
+- task-rate scheduling
+- telemetry generation
+- actuator saturation checks
+- health-state reporting
 
-The system has two main parts:
+That structure is closer to how spacecraft software is tested than a single script that only plots the dynamics.
 
-1. Python spacecraft simulation
-2. C flight software controller
+## Model
 
-The Python simulation models the spacecraft state, sensor noise, actuator limits, and telemetry logging.
+The attitude model is intentionally simple. It uses a small-angle, decoupled 3-axis rotational model.
 
-The C controller receives a sensor packet containing attitude error and angular velocity. It computes reaction wheel torque commands using a proportional-derivative control law.
+    alpha = torque / inertia
+    omega_next = omega + alpha dt
+    theta_next = theta + omega dt
 
-## Documentation
+The controller uses a PD law.
 
-Additional design notes are included in:
+    torque_cmd = -Kp theta - Kd omega
 
-- `docs/system_architecture.md`
-- `docs/control_design.md`
-- `docs/results.md`
+The current gains are:
 
-## Data Flow
+    Kp = 0.8
+    Kd = 2.0
 
-```text
-True spacecraft state
-        |
-        v
-Noisy sensor model
-        |
-        v
-C flight software controller
-        |
-        v
-Reaction wheel torque command
-        |
-        v
-Actuator saturation model
-        |
-        v
-Spacecraft dynamics update
-        |
-        v
-Telemetry CSV and plots
-```
+The plant applies a torque limit after the C controller returns the raw command. The telemetry stores both values.
 
-## RTOS-Style Task Rates
+    torque_cmd_*       raw controller command
+    torque_applied_*   torque after actuator limiting
 
-| Task | Rate | Period |
-|---|---:|---:|
-| Sensor task | 100 Hz | 0.01 s |
-| Control task | 50 Hz | 0.02 s |
-| Telemetry task | 10 Hz | 0.10 s |
-| Health task | 1 Hz | 1.00 s |
+## Task rates
 
-The plant dynamics are integrated at 0.01 s. Telemetry is logged separately at 10 Hz.
+The scheduler tracks four task rates:
 
-## Results
+| Task | Period |
+|---|---:|
+| Sensor | 0.01 s |
+| Control | 0.02 s |
+| Telemetry | 0.10 s |
+| Health | 1.00 s |
 
-The controller stabilizes the initial attitude error and damps angular velocity toward zero. The simulation also records torque saturation events and pointing error magnitude.
+The Python simulation calls the C scheduler through a shared library. Missed releases are skipped instead of replayed, so the simulation records one task execution at the current step if the loop falls behind.
 
-Example output:
+## Requirements
 
-```text
-Final pointing error: 0.00015004 rad
-Maximum pointing error: 0.40203901 rad
-Torque saturation events: 20
-```
+Python packages:
 
-## Example Plots
+- numpy
+- pandas
+- matplotlib
 
-### Attitude Error
+System tools:
 
-![Attitude Error](results/attitude_error.png)
+- gcc
+- make
 
-### Angular Velocity
+On macOS, the default Apple Clang toolchain is fine.
 
-![Angular Velocity](results/angular_velocity.png)
+Install Python packages with:
 
-### Reaction Wheel Torque Commands
+    python3 -m pip install numpy pandas matplotlib
 
-![Torque Commands](results/torque_command.png)
+## Run
 
-### Pointing Error Magnitude
+Build the C controller and scheduler:
 
-![Pointing Error](results/pointing_error.png)
-
-## Repository Structure
-
-```text
-spacecraft-attitude-hwil-simulation/
-├── README.md
-├── docs/
-│   ├── system_architecture.md
-│   ├── control_design.md
-│   └── results.md
-├── simulation/
-│   ├── spacecraft_dynamics.py
-│   ├── hwil_simulation.py
-│   └── plot_results.py
-├── flight_software/
-│   ├── attitude_controller.c
-│   ├── attitude_controller.h
-│   ├── main.c
-│   ├── scheduler.c
-│   ├── scheduler.h
-│   └── scheduler_test.c
-├── data/
-│   └── hwil_telemetry_output.csv
-├── results/
-│   ├── attitude_error.png
-│   ├── angular_velocity.png
-│   ├── torque_command.png
-│   └── pointing_error.png
-└── matlab/
-```
-
-## How to Run
-
-Compile the C controller:
-
-```bash
-gcc flight_software/main.c flight_software/attitude_controller.c -o flight_software/controller_test
-```
+    make
 
 Run the HWIL-style simulation:
 
-```bash
-python3 simulation/hwil_simulation.py
-```
+    python3 simulation/run_hwil.py
+
+Or use:
+
+    make run
 
 Generate plots:
 
-```bash
-python3 simulation/plot_results.py
-```
+    python3 simulation/plot.py
+
+Or use:
+
+    make plots
+
+Run the simple Python-only baseline:
+
+    make baseline
+
+Run the C controller test:
+
+    make test-ctrl
 
 Run the C scheduler test:
 
-```bash
-gcc flight_software/scheduler_test.c flight_software/scheduler.c -o flight_software/scheduler_test
-./flight_software/scheduler_test
-```
+    make test-sched
 
-## Current Limitations
+Clean build outputs:
 
-This project uses a simplified small-angle attitude model instead of full quaternion dynamics. The HWIL interface is software-based and does not yet communicate with physical hardware. MATLAB/Simulink code generation is planned as a future extension.
+    make clean
 
-## Telemetry Backend Upgrade
+## Outputs
 
-This project includes a lightweight telemetry backend that extends the spacecraft attitude simulation into an operations-style monitoring workflow. Simulated spacecraft telemetry is published through a Python queue-based pub/sub pattern, consumed by a monitoring service, stored in a SQLite database, and checked against defined anomaly thresholds.
+The main simulation writes:
 
-The backend tracks attitude error, angular rate, torque command, battery percentage, and temperature for multiple simulated spacecraft. It flags conditions such as pointing error limits, torque saturation, low battery, and temperature violations, then prints a fleet-status summary for review.
+    data/hwil_telemetry_output.csv
 
-This upgrade models the type of backend logic used in spacecraft operations software: telemetry ingestion, state storage, anomaly detection, and fleet health monitoring.
+The baseline run writes:
 
-## Future Work
+    data/baseline_telemetry_output.csv
 
-- Replace the small-angle attitude model with quaternion dynamics
-- Add simulated gyroscope bias and sensor dropout
-- Add serial communication to a microcontroller
-- Port scheduler logic to FreeRTOS
-- Build a MATLAB/Simulink controller model
-- Compare Simulink-generated C code against the handwritten C controller
+Plots are saved in:
+
+    results/
+
+Main plot outputs:
+
+    attitude_error.png
+    angular_velocity.png
+    torque_command_raw.png
+    torque_applied.png
+    pointing_error.png
+
+## Current result
+
+A representative run gives:
+
+    Final pointing error: 0.00030531 rad
+    Maximum pointing error: 0.40203531 rad
+    Torque-limited telemetry samples: 20
+    Torque saturation events: 2
+    Final health state: OK
+
+The torque-limited telemetry samples value counts telemetry samples where the raw controller command exceeded the actuator limit. The torque saturation events value counts transitions into saturation.
+
+## Limitations
+
+This is a compact testbed. It does not include:
+
+- quaternion attitude propagation
+- gyroscope bias or drift
+- reaction wheel momentum storage
+- actuator delay
+- coupled rigid-body dynamics
+- orbital environment effects
+- real hardware or serial I/O
+
+Those omissions are intentional for this version. The current project focuses on control-loop structure, scheduler integration, telemetry, and actuator-limit behavior.

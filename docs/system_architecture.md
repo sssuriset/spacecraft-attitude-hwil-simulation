@@ -1,48 +1,41 @@
 # System Architecture
 
-This project models a spacecraft attitude control system using a hardware-in-the-loop style software structure. The simulation separates the spacecraft plant dynamics from the flight software controller.
+This project separates the attitude-control test into three parts:
 
-## Architecture Overview
+1. Python plant simulation
+2. C flight-software logic
+3. Telemetry and plotting
 
-The system contains two main components:
+The Python side owns the spacecraft state. It stores attitude error, angular velocity, inertia, actuator limits, and sensor noise. Each simulation step advances the plant with the applied torque.
 
-1. Python spacecraft simulation
-2. C flight software controller
+The C controller owns the control law. It receives one sensor packet and returns one raw torque command. During the main run, Python keeps the C controller open as a persistent process instead of launching a new process for every control update.
 
-The Python simulation acts as the spacecraft hardware environment. It models the spacecraft attitude state, angular velocity, sensor measurements, actuator limits, and telemetry output.
+The C scheduler owns task timing. Python calls the scheduler through a shared library. The scheduler decides when the sensor, control, telemetry, and health tasks are due.
 
-The C controller acts as flight software. It receives a sensor packet containing attitude error and angular velocity. It computes reaction wheel torque commands using a proportional-derivative control law.
+## Main run path
 
-## Data Flow
+    Python plant -> noisy sensor packet -> C controller -> raw torque command -> actuator limit -> Python plant
 
-The simulation follows this sequence:
+The telemetry stores both the raw command and the applied command. That makes actuator saturation visible instead of hiding it inside the plant update.
 
-1. The spacecraft dynamics model stores the true attitude and angular velocity.
-2. The sensor task samples the true state and adds simulated measurement noise.
-3. The noisy sensor packet is passed to the C flight software controller.
-4. The C controller computes torque commands.
-5. The actuator model applies torque saturation limits.
-6. The spacecraft dynamics model updates the attitude state.
-7. Telemetry is logged to a CSV file.
-8. Python plotting scripts generate result figures.
+## C files
 
-## RTOS-Style Task Rates
+`attitude_controller.c` contains the PD control step.
 
-The simulation uses different task rates to approximate a real-time flight software structure.
+`main.c` provides the controller executable. It supports one-shot command-line use and streaming stdin/stdout use.
 
-| Task | Rate | Period |
-|---|---:|---:|
-| Sensor task | 100 Hz | 0.01 s |
-| Control task | 50 Hz | 0.02 s |
-| Telemetry task | 10 Hz | 0.10 s |
-| Health task | 1 Hz | 1.00 s |
+`scheduler.c` contains the task timing logic.
 
-The plant dynamics are integrated at a 0.01 s timestep. Telemetry is logged separately at 10 Hz.
+`scheduler_test.c` checks the scheduler counts over a short run.
 
-## HWIL-Style Design
+## Python files
 
-This is not physical hardware-in-the-loop yet. It is a software HWIL-style architecture because the controller is separated from the plant model and communicates through defined inputs and outputs.
+`run_hwil.py` is the main simulation.
 
-The controller does not directly access the true spacecraft state. It only receives sensor-like measurements and returns actuator-like torque commands.
+`baseline.py` is a Python-only reference run without C process I/O or noisy sensors.
 
-This structure can later be extended to physical HWIL by replacing the Python sensor and actuator interface with serial communication to a microcontroller.
+`plot.py` reads the main telemetry CSV and writes figures.
+
+## Scheduler behavior
+
+If the loop falls behind, the scheduler skips missed releases instead of replaying them. That matches the simulation goal: one task execution is recorded at the current step, and old missed periods are not replayed.

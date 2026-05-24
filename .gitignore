@@ -8,8 +8,8 @@ venv/
 .DS_Store
 
 # C build outputs
-flight_software/controller_test
-flight_software/scheduler_test
+flight_software/ctrl
+flight_software/sched_test
 *.o
 
 # Generated caches
