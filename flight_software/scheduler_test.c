@@ -1,4 +1,5 @@
 #include <stdio.h>
+
 #include "scheduler.h"
 
 int main(void)
@@ -6,8 +7,8 @@ int main(void)
     Scheduler scheduler;
     scheduler_init(&scheduler);
 
-    double dt = 0.01;
-    double total_time_s = 2.0;
+    const double dt = 0.01;
+    const double total_time_s = 2.0;
 
     int sensor_count = 0;
     int control_count = 0;
@@ -17,29 +18,29 @@ int main(void)
     for (int i = 0; i <= total_time_s / dt; i++) {
         double time_s = i * dt;
 
-        if (sensor_task_due(&scheduler, time_s)) {
+        if (due_sensor(&scheduler, time_s)) {
             sensor_count++;
         }
 
-        if (control_task_due(&scheduler, time_s)) {
+        if (due_control(&scheduler, time_s)) {
             control_count++;
         }
 
-        if (telemetry_task_due(&scheduler, time_s)) {
+        if (due_telemetry(&scheduler, time_s)) {
             telemetry_count++;
         }
 
-        if (health_task_due(&scheduler, time_s)) {
+        if (due_health(&scheduler, time_s)) {
             health_count++;
         }
     }
 
     printf("C scheduler test complete\n");
     printf("Simulation time: %.2f s\n", total_time_s);
-    printf("Sensor task executions: %d\n", sensor_count);
-    printf("Control task executions: %d\n", control_count);
-    printf("Telemetry task executions: %d\n", telemetry_count);
-    printf("Health task executions: %d\n", health_count);
+    printf("Sensor executions: %d\n", sensor_count);
+    printf("Control executions: %d\n", control_count);
+    printf("Telemetry executions: %d\n", telemetry_count);
+    printf("Health executions: %d\n", health_count);
 
     return 0;
 }

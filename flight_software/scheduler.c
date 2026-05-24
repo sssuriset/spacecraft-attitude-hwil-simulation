@@ -1,54 +1,51 @@
 #include "scheduler.h"
 
-void scheduler_init(Scheduler *scheduler)
+static int due(double t, double dt, double *next)
 {
-    scheduler->sensor_period_s = 0.01;
-    scheduler->control_period_s = 0.02;
-    scheduler->telemetry_period_s = 0.10;
-    scheduler->health_period_s = 1.00;
-
-    scheduler->next_sensor_time_s = 0.0;
-    scheduler->next_control_time_s = 0.0;
-    scheduler->next_telemetry_time_s = 0.0;
-    scheduler->next_health_time_s = 0.0;
-}
-
-int sensor_task_due(Scheduler *scheduler, double time_s)
-{
-    if (time_s >= scheduler->next_sensor_time_s) {
-        scheduler->next_sensor_time_s += scheduler->sensor_period_s;
-        return 1;
+    if (t + 1.0e-12 < *next) {
+        return 0;
     }
 
-    return 0;
-}
-
-int control_task_due(Scheduler *scheduler, double time_s)
-{
-    if (time_s >= scheduler->next_control_time_s) {
-        scheduler->next_control_time_s += scheduler->control_period_s;
-        return 1;
+    /*
+       If the loop falls behind, missed task releases are skipped instead of
+       replayed. The simulation records one task execution at the current step.
+    */
+    while (t + 1.0e-12 >= *next) {
+        *next += dt;
     }
 
-    return 0;
+    return 1;
 }
 
-int telemetry_task_due(Scheduler *scheduler, double time_s)
+void scheduler_init(Scheduler *s)
 {
-    if (time_s >= scheduler->next_telemetry_time_s) {
-        scheduler->next_telemetry_time_s += scheduler->telemetry_period_s;
-        return 1;
-    }
+    s->sensor_dt = 0.01;
+    s->ctrl_dt = 0.02;
+    s->telem_dt = 0.10;
+    s->health_dt = 1.00;
 
-    return 0;
+    s->next_sensor = 0.0;
+    s->next_ctrl = 0.0;
+    s->next_telem = 0.0;
+    s->next_health = 0.0;
 }
 
-int health_task_due(Scheduler *scheduler, double time_s)
+int due_sensor(Scheduler *s, double t)
 {
-    if (time_s >= scheduler->next_health_time_s) {
-        scheduler->next_health_time_s += scheduler->health_period_s;
-        return 1;
-    }
+    return due(t, s->sensor_dt, &s->next_sensor);
+}
 
-    return 0;
+int due_control(Scheduler *s, double t)
+{
+    return due(t, s->ctrl_dt, &s->next_ctrl);
+}
+
+int due_telemetry(Scheduler *s, double t)
+{
+    return due(t, s->telem_dt, &s->next_telem);
+}
+
+int due_health(Scheduler *s, double t)
+{
+    return due(t, s->health_dt, &s->next_health);
 }

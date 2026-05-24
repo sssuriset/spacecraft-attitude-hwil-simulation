@@ -1,35 +1,53 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -O2
 
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Darwin)
+    SHARED_FLAGS = -dynamiclib
+    SCHED_LIB = flight_software/libsched.dylib
+else
+    SHARED_FLAGS = -shared
+    SCHED_LIB = flight_software/libsched.so
+endif
+
 FLIGHT_DIR = flight_software
 
-CONTROLLER_SRC = $(FLIGHT_DIR)/main.c $(FLIGHT_DIR)/attitude_controller.c
-SCHEDULER_SRC = $(FLIGHT_DIR)/scheduler_test.c $(FLIGHT_DIR)/scheduler.c
+CTRL_SRC = $(FLIGHT_DIR)/main.c $(FLIGHT_DIR)/attitude_controller.c
+SCHED_TEST_SRC = $(FLIGHT_DIR)/scheduler_test.c $(FLIGHT_DIR)/scheduler.c
 
-CONTROLLER_BIN = $(FLIGHT_DIR)/controller_test
-SCHEDULER_BIN = $(FLIGHT_DIR)/scheduler_test
+CTRL_BIN = $(FLIGHT_DIR)/ctrl
+SCHED_BIN = $(FLIGHT_DIR)/sched_test
 
-all: controller scheduler
+all: ctrl sched sched-lib
 
-controller:
-	$(CC) $(CFLAGS) $(CONTROLLER_SRC) -o $(CONTROLLER_BIN)
+ctrl:
+	$(CC) $(CFLAGS) $(CTRL_SRC) -o $(CTRL_BIN)
 
-scheduler:
-	$(CC) $(CFLAGS) $(SCHEDULER_SRC) -o $(SCHEDULER_BIN)
+sched:
+	$(CC) $(CFLAGS) $(SCHED_TEST_SRC) -o $(SCHED_BIN)
 
-run: controller
-	python3 simulation/hwil_simulation.py
+sched-lib:
+	$(CC) $(CFLAGS) -fPIC $(SHARED_FLAGS) $(FLIGHT_DIR)/scheduler.c -o $(SCHED_LIB)
+
+run: all
+	python3 simulation/run_hwil.py
 
 plots:
-	python3 simulation/plot_results.py
+	python3 simulation/plot.py
 
-test-controller: controller
-	./$(CONTROLLER_BIN) 0.0 0.3 -0.2 0.15 0.02 -0.01 0.015
+baseline:
+	python3 simulation/baseline.py
 
-test-scheduler: scheduler
-	./$(SCHEDULER_BIN)
+test-ctrl: ctrl
+	./$(CTRL_BIN) 0.0 0.3 -0.2 0.15 0.02 -0.01 0.015
+
+test-sched: sched
+	./$(SCHED_BIN)
 
 clean:
-	rm -f $(CONTROLLER_BIN)
-	rm -f $(SCHEDULER_BIN)
+	rm -f $(CTRL_BIN)
+	rm -f $(SCHED_BIN)
+	rm -f $(FLIGHT_DIR)/libsched.dylib
+	rm -f $(FLIGHT_DIR)/libsched.so
 	rm -f *.o

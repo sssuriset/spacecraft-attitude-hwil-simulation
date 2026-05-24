@@ -2,22 +2,22 @@
 #define SCHEDULER_H
 
 typedef struct {
-    double sensor_period_s;
-    double control_period_s;
-    double telemetry_period_s;
-    double health_period_s;
+    double sensor_dt;
+    double ctrl_dt;
+    double telem_dt;
+    double health_dt;
 
-    double next_sensor_time_s;
-    double next_control_time_s;
-    double next_telemetry_time_s;
-    double next_health_time_s;
+    double next_sensor;
+    double next_ctrl;
+    double next_telem;
+    double next_health;
 } Scheduler;
 
-void scheduler_init(Scheduler *scheduler);
+void scheduler_init(Scheduler *s);
 
-int sensor_task_due(Scheduler *scheduler, double time_s);
-int control_task_due(Scheduler *scheduler, double time_s);
-int telemetry_task_due(Scheduler *scheduler, double time_s);
-int health_task_due(Scheduler *scheduler, double time_s);
+int due_sensor(Scheduler *s, double t);
+int due_control(Scheduler *s, double t);
+int due_telemetry(Scheduler *s, double t);
+int due_health(Scheduler *s, double t);
 
 #endif
